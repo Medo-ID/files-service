@@ -1,4 +1,4 @@
-# file-service
+# files-service
 
 To install dependencies:
 
