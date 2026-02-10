@@ -1,5 +1,5 @@
 import type { BunRequest } from "bun";
-import type { AuthRequest } from "../middleware";
+import type { AuthRequest } from "../middlewares/auth";
 
 // If type === folder => Zip it then start download. Right?
 // Esle start normal downlaod

@@ -1,18 +1,16 @@
 import type { HeadersInit } from "bun";
 
-export function respondWithJSON(
+export function respondWithJSON<T>(
   status: number,
-  payload: any,
+  payload: T,
   headers: HeadersInit = {},
 ) {
-  const body = JSON.stringify(payload);
-
   const responseHeaders = new Headers({
     "Content-Type": "application/json",
     ...headers,
   });
 
-  return new Response(body, {
+  return new Response(JSON.stringify(payload), {
     status,
     headers: responseHeaders,
   });

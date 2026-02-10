@@ -2,8 +2,9 @@ import { jwtVerify } from "jose";
 import { createSecretKey } from "node:crypto";
 
 export interface JWTPayload {
-  id: string;
-  email: string;
+  sub: string;
+  scope?: string[];
+  email?: string;
   [key: string]: unknown;
 }
 

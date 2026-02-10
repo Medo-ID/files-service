@@ -7,6 +7,7 @@ import {
   text,
   timestamp,
   uuid,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 // ENUMS
@@ -22,7 +23,9 @@ export const uploadStatus = pgEnum("upload_status", [
 export const files = pgTable("files", {
   id: uuid("id").primaryKey().defaultRandom(),
   ownerId: uuid("owner_id").notNull(),
-  parentId: uuid("parent_id"),
+  parentId: uuid("parent_id").references((): AnyPgColumn => files.id, {
+    onDelete: "cascade",
+  }),
   name: text("name").notNull(),
   type: fileTypes().notNull(),
   mimeType: text("mime_type"),
@@ -44,7 +47,9 @@ export const uploads = pgTable("uploads", {
   ownerId: uuid("owner_id").notNull(),
   status: uploadStatus().notNull(),
   totalSize: bigint("total_size", { mode: "number" }).notNull(),
-  uploadedSize: bigint("uploaded_size", { mode: "number" }).notNull(),
+  uploadedSize: bigint("uploaded_size", { mode: "number" })
+    .default(0)
+    .notNull(),
   multipartUploadId: text("multipart_upload_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at")
@@ -53,15 +58,20 @@ export const uploads = pgTable("uploads", {
 });
 
 // RELATIONS
-export const fileRelations = relations(files, ({ one }) => ({
-  upload: one(uploads, {
-    fields: [files.id],
-    references: [uploads.fileId],
+export const fileRelations = relations(files, ({ one, many }) => ({
+  parent: one(files, {
+    fields: [files.parentId],
+    references: [files.id],
+    relationName: "folder",
   }),
+  files: many(files, {
+    relationName: "folder",
+  }),
+  uploads: many(uploads),
 }));
 
 export const uploadRelations = relations(uploads, ({ one }) => ({
-  user: one(files, {
+  file: one(files, {
     fields: [uploads.fileId],
     references: [files.id],
   }),
