@@ -1,16 +1,64 @@
 import type { BunRequest } from "bun";
 import type { AuthRequest } from "../middlewares/auth";
+import { insertFileMatadata } from "../database/queries/files";
+import { BadRequestError } from "../utils/error";
+import { s3 } from "../config";
+import { CreateMultipartUploadCommand } from "@aws-sdk/client-s3";
+import { insertToUploads } from "../database/queries/uploads";
+import { generatePresinedURLs } from "../utils/aws";
+import { respondWithJSON } from "../utils/json";
 
-// Is the insert querie will be used here in the upload route: initiateUpload
-// If file is type of folder I need to use a loop to initiat upload?
-// How can I handle a large file with a lot of files inside it?
+export type FileMetadata = {
+  name: string;
+  size: number;
+  type: "file" | "folder";
+  mimeType: string;
+};
 
 export async function initiateUpload(req: BunRequest) {
   const { session } = req as AuthRequest;
-  return new Response(`${session}`);
-  // insert file metadata
-  // insert upload record
-  // return upload ID
+  const { name, size, type, mimeType } = (await req.json()) as FileMetadata;
+  if (!name || !size || !type || !mimeType) {
+    throw new BadRequestError("Invalid File Metadata!");
+  }
+
+  // ** Create Record in File Table **
+  const fileRecord = await insertFileMatadata({
+    name,
+    ownerId: session.sub,
+    size,
+    type,
+    mimeType,
+  });
+
+  if (!fileRecord) throw new Error("Can't insert file!");
+  const fileId = fileRecord.id;
+
+  // ** Initiate Multipart Upload **
+  const cmd = new CreateMultipartUploadCommand({
+    Bucket: process.env.AWS_BUCKET!,
+    Key: fileId,
+    ContentType: mimeType,
+  });
+  const { UploadId, ChecksumType } = await s3.send(cmd);
+  if (!UploadId)
+    throw new Error("AWS command: failed to create multipart upload!");
+
+  // ** Insert Upload Record in Uploads Table **
+  await insertToUploads({
+    fileId: fileId,
+    ownerId: session.sub,
+    totalSize: size,
+    multipartUploadId: UploadId,
+  });
+
+  // ** Generate Presigned URLs URL/Chunk **
+  const presignedURLs = await generatePresinedURLs(fileId, UploadId, size);
+
+  // When using these URLs we need to capture the ETag header from each response
+  // -> then send id with it's PartNumber to the completeUpload endpoint.
+
+  return respondWithJSON(201, { uploadId: UploadId, presignedURLs });
 }
 
 export async function partUpload(req: BunRequest) {

@@ -45,12 +45,12 @@ export const uploads = pgTable("uploads", {
     .references(() => files.id, { onDelete: "cascade" })
     .notNull(),
   ownerId: uuid("owner_id").notNull(),
-  status: uploadStatus().notNull(),
+  status: uploadStatus().notNull().default("initiated"),
   totalSize: bigint("total_size", { mode: "number" }).notNull(),
   uploadedSize: bigint("uploaded_size", { mode: "number" })
     .default(0)
     .notNull(),
-  multipartUploadId: text("multipart_upload_id"),
+  multipartUploadId: text("multipart_upload_id").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at")
     .defaultNow()

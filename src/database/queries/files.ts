@@ -4,7 +4,7 @@ import { files, type NewFile } from "../schema";
 
 export async function insertFileMatadata(file: NewFile) {
   const [result] = await db.insert(files).values(file).returning();
-  return result?.id;
+  return result;
 }
 
 export async function getFileById(userId: string, fileId: string) {
