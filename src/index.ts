@@ -11,14 +11,13 @@ const server = serve({
       return new Response("Files Service is Working...\n");
     },
     // Files Metadata, Navigation & Download
-    "/files": { GET: listFiles },
+    "/files/:folder": { GET: listFiles },
     "/files/:id": { GET: notImplementedYet, DELETE: notImplementedYet },
     "/files/:id/rename": { PATCH: notImplementedYet },
     "/files/:id/move": { PATCH: notImplementedYet },
     "/files/:id/download": { GET: notImplementedYet },
     // Uploads
     "/uploads/initiate": { POST: notImplementedYet },
-    "/uploads/:id/part": { PUT: notImplementedYet },
     "/uploads/:id/complete": { POST: notImplementedYet },
     "/uploads/:id/abort": { POST: notImplementedYet },
     "/uploads/:id/status": { GET: notImplementedYet },

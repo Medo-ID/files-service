@@ -12,6 +12,7 @@ import {
 
 // ENUMS
 export const fileTypes = pgEnum("file_types", ["file", "folder"]);
+export const fileStatus = pgEnum("file_status", ["pending", "completed"]);
 export const uploadStatus = pgEnum("upload_status", [
   "initiated",
   "uploading",
@@ -30,6 +31,7 @@ export const files = pgTable("files", {
   type: fileTypes().notNull(),
   mimeType: text("mime_type"),
   size: bigint("size", { mode: "number" }).default(0),
+  status: fileStatus().notNull().default("pending"),
   storageKey: text("storage_key"),
   checksum: text("checksum"),
   isDeleted: boolean("is_deleted").default(false),
