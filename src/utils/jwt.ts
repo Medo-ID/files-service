@@ -15,7 +15,7 @@ export async function verifyToken(
   audience: string,
 ): Promise<JWTPayload> {
   if (!accessSecret) {
-    throw new Error(`Secret of type: access is required for verifying token!`);
+    throw new Error(`Secret of type: access is required for verifying token`);
   }
 
   const secret = createSecretKey(accessSecret, "utf-8");

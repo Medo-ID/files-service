@@ -6,7 +6,7 @@ export async function insertToUploads(upload: NewUpload) {
   const [result] = await db.insert(uploads).values(upload).returning();
   return result;
 }
-// Am I HANDLING THE JOIN CORRECTLLY?
+
 export async function getUploadWithFile(userId: string, uploadId: string) {
   const [result] = await db
     .select()

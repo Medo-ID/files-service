@@ -30,10 +30,9 @@ export const files = pgTable("files", {
   name: text("name").notNull(),
   type: fileTypes().notNull(),
   mimeType: text("mime_type"),
-  size: bigint("size", { mode: "number" }).default(0),
+  size: bigint("size", { mode: "number" }).default(0).notNull(),
   status: fileStatus().notNull().default("pending"),
   storageKey: text("storage_key"),
-  checksum: text("checksum"),
   isDeleted: boolean("is_deleted").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at")
