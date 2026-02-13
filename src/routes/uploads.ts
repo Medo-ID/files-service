@@ -1,5 +1,5 @@
 import type { BunRequest } from "bun";
-import type { AuthRequest } from "../middlewares/auth";
+import type { AuthRequest } from "../middlewares/types";
 import { insertFileMetadata } from "../database/queries/files";
 import { BadRequestError, NotFoundError } from "../utils/error";
 import { s3 } from "../config";

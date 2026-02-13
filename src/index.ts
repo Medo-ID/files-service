@@ -1,6 +1,6 @@
-import { serve, type BunRequest } from "bun";
+import { serve } from "bun";
 import { errorHandlingMiddleware } from "./middlewares/error";
-import { isAuth } from "./middlewares/auth";
+import { healthCheck, root } from "./routes/health";
 import {
   deleteFileOrFolder,
   download,
@@ -15,25 +15,28 @@ import {
   initiateUpload,
   status,
 } from "./routes/uploads";
+import { privatePipe, publicPipe } from "./middlewares/compose";
 
 const server = serve({
   port: 3001,
   routes: {
-    "/": (req: BunRequest) => {
-      console.log(server.requestIP(req)?.address || "Unknown IP Address.");
-      return new Response("Files Service is Working...\n");
-    },
+    // Service-Health
+    "/health": { GET: publicPipe(healthCheck) },
+    "/": { GET: publicPipe(root) },
     // Files Metadata, Navigation & Download
-    "/files/:folder": { GET: isAuth(listFiles) },
-    "/files/:id": { GET: isAuth(getFile), DELETE: isAuth(deleteFileOrFolder) },
-    "/files/:id/rename": { PATCH: isAuth(renameFile) },
-    "/files/:id/move": { PATCH: isAuth(moveFile) },
-    "/files/:id/download": { GET: isAuth(download) },
+    "/files/:folder": { GET: privatePipe(listFiles) },
+    "/files/:id": {
+      GET: privatePipe(getFile),
+      DELETE: privatePipe(deleteFileOrFolder),
+    },
+    "/files/:id/rename": { PATCH: privatePipe(renameFile) },
+    "/files/:id/move": { PATCH: privatePipe(moveFile) },
+    "/files/:id/download": { GET: privatePipe(download) },
     // Uploads
-    "/uploads/initiate": { POST: isAuth(initiateUpload) },
-    "/uploads/:id/complete": { POST: isAuth(completeUpload) },
-    "/uploads/:id/abort": { POST: isAuth(abortUpload) },
-    "/uploads/:id/status": { GET: isAuth(status) },
+    "/uploads/initiate": { POST: privatePipe(initiateUpload) },
+    "/uploads/:id/complete": { POST: privatePipe(completeUpload) },
+    "/uploads/:id/abort": { POST: privatePipe(abortUpload) },
+    "/uploads/:id/status": { GET: privatePipe(status) },
   },
   error(err) {
     return errorHandlingMiddleware(err);

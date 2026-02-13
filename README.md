@@ -198,6 +198,106 @@ export function rateLimit(handler: RouteHandler): RouteHandler {
 }
 ```
 
+#### CORS Middleware
+
+A simple CORS middleware is included at `src/middlewares/cors.ts`. It:
+
+- Handles `OPTIONS` preflight requests.
+- Supports an `ALLOWED_ORIGINS` list and the wildcard `*`.
+- When `*` is used, the middleware sets `Access-Control-Allow-Origin: *` and `Access-Control-Allow-Credentials: false` (required by browsers).
+- When a specific origin is allowed, the middleware echoes that origin and sets `Access-Control-Allow-Credentials: true` so cookies/credentials work.
+
+You can configure allowed origins via an environment variable. Example implementation pattern:
+
+```typescript
+// suggested in src/middlewares/cors.ts
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",").map((s) => s.trim())
+  : ["*"];
+```
+
+Usage notes:
+
+- Add the middleware when composing routes. Typical ordering is `cors(isAuth(handler))` so preflight and CORS headers are applied before auth errors are returned to browsers.
+- If you expose `*` in production, be aware that credentials (cookies, Authorization with credentials) cannot be used by browsers.
+
+### Middleware & Pipes
+
+This project includes a small middleware composition utility and several ready-to-use middlewares under `src/middlewares/`:
+
+- `src/middlewares/compose.ts` — exports a `compose(...middlewares)` helper and two pre-built pipes:
+  - `publicPipe` — `compose(cors, logger)` intended for public endpoints (no auth).
+  - `privatePipe` — `compose(cors, logger, rateLimit(...), isAuth)` intended for authenticated endpoints.
+
+- `src/middlewares/cors.ts` — CORS handler (preflight, wildcard `*` support). See the earlier CORS section for behavior and `ALLOWED_ORIGINS` configuration.
+
+- `src/middlewares/logger.ts` — Request logger that prints JSON with method, path, status, duration, and client IP. It also catches handler errors and returns a 500 JSON response.
+
+- `src/middlewares/rateLimit.ts` — Simple in-memory rate limiter. Key points:
+  - Configured by calling `rateLimit({ windowMs, max })` in the compose pipeline.
+  - Uses client IP (from `x-forwarded-for`) as the key.
+  - Returns `429 Too Many Requests` when the limit is exceeded.
+  - The store is an in-memory `Map`; it's suitable for single-instance dev/portfolio deployments — for production use a shared store (Redis) so limits are consistent across instances.
+
+Example: composing a private route in `src/index.ts`:
+
+```ts
+import { privatePipe } from "./middlewares/compose";
+import { listFiles } from "./routes/files";
+
+// use the pre-built private pipeline for a protected route
+server.route("/files/:folder", { GET: privatePipe(listFiles) });
+```
+
+Notes on ordering:
+
+- `cors` should run before `isAuth` so browsers receive proper CORS headers on auth failures and preflight requests are handled.
+- `logger` typically wraps the handler early to measure duration including middleware time.
+
+### Types & Handler Signatures
+
+The middleware layer uses a small set of types in `src/middlewares/types.ts`:
+
+- `RouteHandler` — `(req: BunRequest) => Promise<Response> | Response` (generic handler)
+- `AuthRequest` — `BunRequest & { session: JWTPayload }` (handler with auth payload)
+
+Middlewares should accept and return functions compatible with `RouteHandler` so they compose cleanly.
+
+### Health Endpoint
+
+There is a lightweight health endpoint at `src/routes/health.ts`:
+
+- `GET /` — root message (used for basic uptime check)
+- `GET /health` — returns service status, Bun version, memory usage, uptime, and environment
+
+Example response:
+
+```json
+{
+  "status": "healthy",
+  "timestamp": "2026-02-13T...Z",
+  "uptime": "1m 12s",
+  "bunVersion": "1.x.x",
+  "memory": { "rss": "12MB", "heapUsed": "5MB" },
+  "env": "development"
+}
+```
+
+### Rate Limiting Configuration Example
+
+To change the private pipeline limit, edit `src/middlewares/compose.ts` where `privatePipe` is built. Example:
+
+```ts
+export const privatePipe = compose(
+  cors,
+  logger,
+  rateLimit({ windowMs: 60000, max: 100 }),
+  isAuth,
+);
+```
+
+For production, replace `rateLimit` with a Redis-backed limiter.
+
 ### Custom Error Types
 
 ```typescript
@@ -266,9 +366,7 @@ bun run src/index.ts
 - ✅ Transaction safety for upload completion
 - ✅ Async error handling with `.catch()` fallbacks
 - ✅ Size limits to prevent abuse
-- ⚠️ Add request logging for monitoring
-- ⚠️ Add CORS configuration for client apps
-- ⚠️ Implement rate limiting
+- ⚠️ Rate limiting: Use redis in production
 - ⚠️ Set environment-based database pool sizes
 
 ## Learning Resources

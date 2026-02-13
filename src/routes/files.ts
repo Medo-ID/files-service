@@ -1,5 +1,5 @@
 import { type BunRequest } from "bun";
-import type { AuthRequest } from "../middlewares/auth";
+import type { AuthRequest } from "../middlewares/types";
 import {
   checkNameCollision,
   getAllDescendantFiles,

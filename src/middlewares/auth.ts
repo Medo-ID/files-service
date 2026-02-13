@@ -1,12 +1,6 @@
-import type { BunRequest } from "bun";
-import { verifyToken, type JWTPayload } from "../utils/jwt";
+import { verifyToken } from "../utils/jwt";
 import { UserNotAuthenticatedError } from "../utils/error";
-
-export type RouteHandler = (req: BunRequest) => Promise<Response> | Response;
-export type AuthRequest = BunRequest & { session: JWTPayload };
-export type RouteHandlerWithAuth = (
-  req: AuthRequest,
-) => Promise<Response> | Response;
+import type { AuthRequest, RouteHandler } from "./types";
 
 export function isAuth(handler: RouteHandler): RouteHandler {
   return async (req) => {

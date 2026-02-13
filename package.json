@@ -4,7 +4,11 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "start": "bun --hot src/index.ts"
+    "start": "bun --hot src/index.ts",
+    "db:push": "drizzle-kit push",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio"
   },
   "devDependencies": {
     "@types/archiver": "^7.0.0",
