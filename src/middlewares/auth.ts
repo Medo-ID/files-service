@@ -5,17 +5,21 @@ import type { AuthRequest, RouteHandler } from "./types";
 export function isAuth(handler: RouteHandler): RouteHandler {
   return async (req) => {
     const authHeader = req.headers.get("authorization");
-    const access = authHeader && authHeader.split(" ")[1];
-    if (!access) {
-      throw new UserNotAuthenticatedError("You are not authenticated");
+    const token = authHeader?.startsWith("Bearer ")
+      ? authHeader.split(" ")[1]
+      : null;
+
+    if (!token) {
+      throw new UserNotAuthenticatedError("Missing or malformed token");
     }
 
-    const payload = await verifyToken(access, "files-service");
-    if (!payload) {
-      throw new UserNotAuthenticatedError("Invalid access token");
+    try {
+      const payload = await verifyToken(token, "files-service");
+      (req as AuthRequest).session = payload;
+      return handler(req);
+    } catch (err) {
+      console.error("Auth middleware error", err);
+      throw new UserNotAuthenticatedError("Invalid or expired token");
     }
-
-    (req as AuthRequest).session = payload;
-    return handler(req);
   };
 }

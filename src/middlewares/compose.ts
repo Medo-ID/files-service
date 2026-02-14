@@ -8,7 +8,11 @@ export function compose(...middlewares: Function[]) {
     middlewares.reduceRight((acc, middleware) => middleware(acc), handler);
 }
 
-export const publicPipe = compose(cors, logger);
+export const publicPipe = compose(
+  cors,
+  logger,
+  rateLimit({ windowMs: 60000, max: 100 }),
+);
 export const privatePipe = compose(
   cors,
   logger,

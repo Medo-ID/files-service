@@ -24,6 +24,7 @@ const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB in bytes
 export async function listFiles(req: BunRequest) {
   const { session } = req as AuthRequest;
   const parentId = req.params.folder || null;
+  console.log(parentId, session.sub);
   const files = await userFiles(session.sub, parentId);
 
   return respondWithJSON(200, { files });

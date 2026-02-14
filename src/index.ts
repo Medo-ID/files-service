@@ -21,7 +21,7 @@ const server = serve({
   port: 3001,
   routes: {
     // Service-Health
-    "/health": { GET: publicPipe(healthCheck) },
+    "/health": { GET: privatePipe(healthCheck) },
     "/": { GET: publicPipe(root) },
     // Files Metadata, Navigation & Download
     "/files/:folder": { GET: privatePipe(listFiles) },
