@@ -154,49 +154,22 @@ curl http://localhost:3001/files/folder-id \
      user.tier === "premium" ? 500 * 1024 * 1024 : 100 * 1024 * 1024;
    ```
 
-2. **Bandwidth Limits**: Add rate limiting to download routes
-
-   ```typescript
-   import rateLimit from "express-rate-limit";
-   ```
-
-3. **File Encryption**: Encrypt data before uploading to S3
-
-   ```typescript
-   const encrypted = await encryptFile(buffer);
-   ```
-
-4. **Version Control**: Track file history with soft deletes
+2. **Version Control**: Track file history with soft deletes
 
    ```typescript
    // Add versionId column to files table
    ```
 
-5. **Sharing**: Allow users to share files with public/private links
+3. **Sharing**: Allow users to share files with public/private links
 
    ```typescript
    // Add shares table and routes
    ```
 
-6. **Analytics**: Track usage with database events
+4. **Analytics**: Track usage with database events
    ```typescript
    // Log file operations in analytics table
    ```
-
-### Adding Custom Middleware
-
-```typescript
-// src/middlewares/rateLimit.ts
-export function rateLimit(handler: RouteHandler): RouteHandler {
-  const limits = new Map<string, number>();
-
-  return async (req) => {
-    const ip = server.requestIP(req)?.address;
-    // Implement rate limiting logic
-    return handler(req);
-  };
-}
-```
 
 #### CORS Middleware
 
