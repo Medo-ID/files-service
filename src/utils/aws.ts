@@ -13,8 +13,7 @@ export async function generatePresignedURLs(
   // -> 1000 parts better then 2000 XD
   const CHUNK_SIZE = 10 * 1024 * 1024;
   const numberOfParts = Math.ceil(size / CHUNK_SIZE);
-
-  const promises: Promise<string>[] = [];
+  const promises: Promise<{ partNumber: number; url: string }>[] = [];
 
   for (let i = 0; i < numberOfParts; i++) {
     const cmd = new UploadPartCommand({
@@ -23,8 +22,13 @@ export async function generatePresignedURLs(
       UploadId: uploadId,
       PartNumber: i + 1,
     });
-
-    promises.push(getSignedUrl(s3, cmd, { expiresIn: 3600 }));
+    const partNumber = i + 1;
+    promises.push(
+      getSignedUrl(s3, cmd, { expiresIn: 3600 }).then((url) => ({
+        partNumber,
+        url,
+      })),
+    );
   }
 
   return await Promise.all(promises);

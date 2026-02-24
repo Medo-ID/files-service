@@ -8,30 +8,36 @@ import {
   CompleteMultipartUploadCommand,
   CreateMultipartUploadCommand,
   ListPartsCommand,
+  PutObjectCommand,
 } from "@aws-sdk/client-s3";
 import {
   getUploadWithFile,
   insertToUploads,
+  markFileAsCompleted,
   markUploadAsAborted,
   markUploadAsCompleted,
   updateUploads,
 } from "../database/queries/uploads";
 import { generatePresignedURLs } from "../utils/aws";
 import { respondWithJSON } from "../utils/json";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 export type FileMetadata = {
   name: string;
   size: number;
   type: "file" | "folder";
-  mimeType: string;
+  mimeType?: string;
+  parentId?: string | null;
 };
 
 // Max file size: 100MB (safe for S3 free tier and $0 cost operation)
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB in bytes
+const MULTIPART_THRESHOLD = 5 * 1024 * 1024; // 5MB in bytes
 
 export async function initiateUpload(req: BunRequest) {
   const { session } = req as AuthRequest;
-  const { name, size, type, mimeType } = (await req.json()) as FileMetadata;
+  const { name, size, type, mimeType, parentId } =
+    (await req.json()) as FileMetadata;
   if (!name || !size || !type || !mimeType) {
     throw new BadRequestError("Invalid File Metadata");
   }
@@ -43,8 +49,23 @@ export async function initiateUpload(req: BunRequest) {
   }
 
   const fileId = crypto.randomUUID();
-  const s3Key = `${session.sub}/${fileId}`;
 
+  if (type === "folder") {
+    await insertFileMetadata({
+      id: fileId,
+      name,
+      ownerId: session.sub,
+      size: 0,
+      type: "folder",
+      mimeType: "",
+      parentId,
+      storageKey: null,
+    });
+
+    return respondWithJSON(201, { fileId });
+  }
+
+  const s3Key = `${session.sub}/${fileId}`;
   // ** Create Record in File Table **
   const fileRecord = await insertFileMetadata({
     id: fileId,
@@ -58,7 +79,19 @@ export async function initiateUpload(req: BunRequest) {
 
   if (!fileRecord) throw new Error("Can't insert file");
 
-  // ** Initiate Multipart Upload **
+  // ** Small file: single presigned url **
+  if (size < MULTIPART_THRESHOLD) {
+    const cmd = new PutObjectCommand({
+      Bucket: process.env.AWS_BUCKET!,
+      Key: s3Key,
+      ContentType: mimeType,
+    });
+    const presignedURL = await getSignedUrl(s3, cmd, { expiresIn: 3600 });
+
+    return respondWithJSON(201, { fileId, uploadType: "single", presignedURL });
+  }
+
+  // ** Initiate Multipart Upload - Large file **
   const cmd = new CreateMultipartUploadCommand({
     Bucket: process.env.AWS_BUCKET!,
     Key: s3Key,
@@ -89,13 +122,29 @@ export async function initiateUpload(req: BunRequest) {
 
   return respondWithJSON(201, {
     fileId,
+    uploadType: "multipart",
     dbUploadId: upload.id,
     s3UploadId: UploadId,
     presignedURLs,
   });
 }
 
-// This is used to complete file uploading
+// This used to complete single file uploading
+export async function completeSingleUpload(req: BunRequest) {
+  const { session } = req as AuthRequest;
+  const { fileId } = (await req.json()) as { fileId: string };
+
+  console.log(fileId);
+
+  if (!fileId) throw new BadRequestError("fileId is required");
+
+  const updated = await markFileAsCompleted(session.sub, fileId);
+  if (!updated) throw new NotFoundError("File not found");
+
+  return respondWithJSON(200, { message: "File marked as completed" });
+}
+
+// This is used to complete file uploading for multipart upload
 export async function completeUpload(req: BunRequest) {
   const { session } = req as AuthRequest;
   const dbUploadId = req.params.id;

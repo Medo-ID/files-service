@@ -11,6 +11,7 @@ import {
 } from "./routes/files";
 import {
   abortUpload,
+  completeSingleUpload,
   completeUpload,
   initiateUpload,
   status,
@@ -34,6 +35,7 @@ const server = serve({
     "/files/:id/download": { GET: privatePipe(download) },
     // Uploads
     "/uploads/initiate": { POST: privatePipe(initiateUpload) },
+    "/uploads/complete-single": { POST: privatePipe(completeSingleUpload) },
     "/uploads/:id/complete": { POST: privatePipe(completeUpload) },
     "/uploads/:id/abort": { POST: privatePipe(abortUpload) },
     "/uploads/:id/status": { GET: privatePipe(status) },

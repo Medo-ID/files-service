@@ -31,6 +31,16 @@ export async function updateUploads(
     );
 }
 
+export async function markFileAsCompleted(userId: string, fileId: string) {
+  const result = await db
+    .update(files)
+    .set({ status: "completed" })
+    .where(and(eq(files.id, fileId), eq(files.ownerId, userId)))
+    .returning();
+
+  return result[0] ?? null;
+}
+
 export async function markUploadAsCompleted(uploadId: string, fileId: string) {
   await db.transaction(async (tx) => {
     await tx
