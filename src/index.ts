@@ -14,6 +14,7 @@ import {
   completeSingleUpload,
   completeUpload,
   initiateUpload,
+  regeneratePresignedUrls,
   status,
 } from "./routes/uploads";
 import { privatePipe, publicPipe } from "./middlewares/compose";
@@ -39,6 +40,7 @@ const server = serve({
     "/uploads/:id/complete": { POST: privatePipe(completeUpload) },
     "/uploads/:id/abort": { POST: privatePipe(abortUpload) },
     "/uploads/:id/status": { GET: privatePipe(status) },
+    "/uploads/:id/regenerate": { GET: privatePipe(regeneratePresignedUrls) },
   },
   error(err) {
     return errorHandlingMiddleware(err);

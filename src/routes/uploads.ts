@@ -18,7 +18,7 @@ import {
   markUploadAsCompleted,
   updateUploads,
 } from "../database/queries/uploads";
-import { generatePresignedURLs } from "../utils/aws";
+import { CHUNK_SIZE, generatePresignedURLs } from "../utils/aws";
 import { respondWithJSON } from "../utils/json";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -38,6 +38,7 @@ export async function initiateUpload(req: BunRequest) {
   const { session } = req as AuthRequest;
   const { name, size, type, mimeType, parentId } =
     (await req.json()) as FileMetadata;
+  console.log(name, size, type, mimeType, parentId);
   if (!name || !size || !type || !mimeType) {
     throw new BadRequestError("Invalid File Metadata");
   }
@@ -80,7 +81,8 @@ export async function initiateUpload(req: BunRequest) {
   if (!fileRecord) throw new Error("Can't insert file");
 
   // ** Small file: single presigned url **
-  if (size < MULTIPART_THRESHOLD) {
+  if (size <= MULTIPART_THRESHOLD) {
+    console.log("Single");
     const cmd = new PutObjectCommand({
       Bucket: process.env.AWS_BUCKET!,
       Key: s3Key,
@@ -115,7 +117,7 @@ export async function initiateUpload(req: BunRequest) {
   }
 
   // ** Generate Presigned URLs URL/Chunk **
-  const presignedURLs = await generatePresignedURLs(fileId, UploadId, size);
+  const presignedURLs = await generatePresignedURLs(s3Key, UploadId, size);
 
   // When using these URLs we need to capture the ETag header from each response
   // -> then send id with it's PartNumber to the completeUpload endpoint.
@@ -126,6 +128,7 @@ export async function initiateUpload(req: BunRequest) {
     dbUploadId: upload.id,
     s3UploadId: UploadId,
     presignedURLs,
+    chunkSize: CHUNK_SIZE,
   });
 }
 
@@ -153,7 +156,7 @@ export async function completeUpload(req: BunRequest) {
   }
   // Get all Parts number with their ETags
   const parts = (await req.json()) as {
-    partNumber: number;
+    PartNumber: number;
     ETag: string;
   }[];
 
@@ -166,7 +169,7 @@ export async function completeUpload(req: BunRequest) {
 
   const sanitizedParts = parts
     .map((p) => ({
-      PartNumber: Number(p.partNumber), // Ensure it's a number
+      PartNumber: Number(p.PartNumber), // Ensure it's a number
       ETag: p.ETag,
     }))
     .sort((a, b) => a.PartNumber - b.PartNumber);
@@ -259,6 +262,30 @@ export async function status(req: BunRequest) {
     status: uploadRecord.uploads.status,
     uploadedSize,
     uploadedParts:
-      Parts?.map((p) => ({ partNumber: p.PartNumber, etag: p.ETag })) || [],
+      Parts?.map((p) => ({ PartNumber: p.PartNumber, etag: p.ETag })) || [],
+  });
+}
+
+export async function regeneratePresignedUrls(req: BunRequest) {
+  const { session } = req as AuthRequest;
+  const dbUploadId = req.params.id;
+  if (!dbUploadId) {
+    throw new BadRequestError("Upload ID is missing");
+  }
+
+  const uploadRecord = await getUploadWithFile(session.sub, dbUploadId);
+  if (!uploadRecord) throw new NotFoundError("Upload not found");
+
+  const s3Key = uploadRecord.files?.storageKey;
+  if (!s3Key) throw new NotFoundError("File not found");
+
+  const uploadId = uploadRecord.uploads.multipartUploadId;
+  const totalSize = uploadRecord.uploads.totalSize;
+
+  const presignedURLs = await generatePresignedURLs(s3Key, uploadId, totalSize);
+
+  return respondWithJSON(200, {
+    presignedURLs,
+    chunkSize: CHUNK_SIZE,
   });
 }

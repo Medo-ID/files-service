@@ -1,6 +1,7 @@
 import { UploadPartCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { s3 } from "../config";
+export const CHUNK_SIZE = 15 * 1024 * 1024;
 
 export async function generatePresignedURLs(
   fileKey: string,
@@ -11,9 +12,8 @@ export async function generatePresignedURLs(
   // TO_TAKE_IN_CONSIDERATIONS!!!:
   // If File is huge (10GB) -> Large JSON payload => for that I will use 10mb
   // -> 1000 parts better then 2000 XD
-  const CHUNK_SIZE = 10 * 1024 * 1024;
   const numberOfParts = Math.ceil(size / CHUNK_SIZE);
-  const promises: Promise<{ partNumber: number; url: string }>[] = [];
+  const promises: Promise<{ PartNumber: number; url: string }>[] = [];
 
   for (let i = 0; i < numberOfParts; i++) {
     const cmd = new UploadPartCommand({
@@ -22,10 +22,10 @@ export async function generatePresignedURLs(
       UploadId: uploadId,
       PartNumber: i + 1,
     });
-    const partNumber = i + 1;
+    const PartNumber = i + 1;
     promises.push(
       getSignedUrl(s3, cmd, { expiresIn: 3600 }).then((url) => ({
-        partNumber,
+        PartNumber,
         url,
       })),
     );
