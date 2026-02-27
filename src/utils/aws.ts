@@ -1,7 +1,7 @@
 import { UploadPartCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { s3 } from "../config";
-export const CHUNK_SIZE = 15 * 1024 * 1024;
+export const CHUNK_SIZE = 8 * 1024 * 1024;
 
 export async function generatePresignedURLs(
   fileKey: string,
