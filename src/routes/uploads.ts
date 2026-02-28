@@ -38,9 +38,15 @@ export async function initiateUpload(req: BunRequest) {
   const { session } = req as AuthRequest;
   const { name, size, type, mimeType, parentId } =
     (await req.json()) as FileMetadata;
-  console.log(name, size, type, mimeType, parentId);
-  if (!name || !size || !type || !mimeType) {
-    throw new BadRequestError("Invalid File Metadata");
+
+  if (!name || !type) {
+    throw new BadRequestError("Invalid Metadata");
+  }
+
+  if (type === "file") {
+    if (!size || !mimeType) {
+      throw new BadRequestError("Invalid File Metadata");
+    }
   }
 
   if (size > MAX_FILE_SIZE) {
@@ -56,9 +62,9 @@ export async function initiateUpload(req: BunRequest) {
       id: fileId,
       name,
       ownerId: session.sub,
-      size: 0,
+      size,
       type: "folder",
-      mimeType: "",
+      mimeType: null,
       parentId,
       storageKey: null,
     });
@@ -75,6 +81,7 @@ export async function initiateUpload(req: BunRequest) {
     size,
     type,
     mimeType,
+    parentId,
     storageKey: s3Key,
   });
 
@@ -82,7 +89,6 @@ export async function initiateUpload(req: BunRequest) {
 
   // ** Small file: single presigned url **
   if (size <= MULTIPART_THRESHOLD) {
-    console.log("Single");
     const cmd = new PutObjectCommand({
       Bucket: process.env.AWS_BUCKET!,
       Key: s3Key,
@@ -136,9 +142,6 @@ export async function initiateUpload(req: BunRequest) {
 export async function completeSingleUpload(req: BunRequest) {
   const { session } = req as AuthRequest;
   const { fileId } = (await req.json()) as { fileId: string };
-
-  console.log(fileId);
-
   if (!fileId) throw new BadRequestError("fileId is required");
 
   const updated = await markFileAsCompleted(session.sub, fileId);
