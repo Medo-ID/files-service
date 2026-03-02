@@ -180,11 +180,36 @@ export async function moveFileToFolder(
 }
 
 // ** RECURSIVE DELETE **
-export async function softDeleteRecursive(userId: string, fileId: string) {
+export async function softDeleteRecursively(userId: string, fileId: string) {
   await db.execute(sql`
     WITH RECURSIVE folder_tree AS (
       SELECT id FROM ${files} 
       WHERE id = ${fileId} 
+        AND owner_id = ${userId}
+        AND is_deleted = false
+        
+      UNION ALL
+        
+      SELECT f.id FROM ${files} f
+      INNER JOIN folder_tree ft ON f.parent_id = ft.id
+      WHERE f.is_deleted = false
+    )
+    UPDATE ${files}
+    SET is_deleted = true
+    WHERE id IN (SELECT id FROM folder_tree)
+      AND owner_id = ${userId};
+  `);
+}
+
+// ** GLOBAL DELETION RECURSIVELY **
+export async function softDeleteFilesRecursively(
+  userId: string,
+  rootFileIds: string[],
+) {
+  await db.execute(sql`
+    WITH RECURSIVE folder_tree AS (
+      SELECT id FROM ${files} 
+      WHERE id IN ${rootFileIds}
         AND owner_id = ${userId}
         AND is_deleted = false
         

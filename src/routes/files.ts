@@ -8,7 +8,8 @@ import {
   isDescendant,
   moveFileToFolder,
   renameFileOrFolder,
-  softDeleteRecursive,
+  softDeleteFilesRecursively,
+  softDeleteRecursively,
   userFiles,
 } from "../database/queries/files";
 import { respondWithJSON } from "../utils/json";
@@ -130,13 +131,23 @@ export async function moveFile(req: BunRequest) {
   return respondWithJSON(200, { message: "Item moved" });
 }
 
-export async function deleteFileOrFolder(req: BunRequest) {
+export async function softDeleteOne(req: BunRequest) {
   const { session } = req as AuthRequest;
   const fileId = req.params.id;
   if (!fileId) throw new BadRequestError("Missing file ID");
 
-  await softDeleteRecursive(session.sub, fileId);
+  await softDeleteRecursively(session.sub, fileId);
   return respondWithJSON(200, { message: "Item deleted" });
+}
+
+export async function softDeleteMany(req: BunRequest) {
+  const { session } = req as AuthRequest;
+  const fileIds = (await req.json()) as string[];
+  if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0)
+    throw new BadRequestError("Missing file IDs");
+  console.log("ids:", fileIds);
+  await softDeleteFilesRecursively(session.sub, fileIds);
+  return respondWithJSON(200, { message: "Items deleted" });
 }
 
 export async function download(req: BunRequest) {

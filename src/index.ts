@@ -2,13 +2,14 @@ import { serve } from "bun";
 import { errorHandlingMiddleware } from "./middlewares/error";
 import { healthCheck, root } from "./routes/health";
 import {
-  deleteFileOrFolder,
+  softDeleteOne,
   download,
   getBreadcrumb,
   getFile,
   listFiles,
   moveFile,
   renameFile,
+  softDeleteMany,
 } from "./routes/files";
 import {
   abortUpload,
@@ -27,10 +28,13 @@ const server = serve({
     "/health": { GET: privatePipe(healthCheck) },
     "/": { GET: publicPipe(root) },
     // Files Metadata, Navigation & Download
-    "/files": { GET: privatePipe(listFiles) },
+    "/files": {
+      GET: privatePipe(listFiles),
+      DELETE: privatePipe(softDeleteMany),
+    },
     "/files/:id": {
       GET: privatePipe(getFile),
-      DELETE: privatePipe(deleteFileOrFolder),
+      DELETE: privatePipe(softDeleteOne),
     },
     "/files/:id/breadcrumb": { GET: privatePipe(getBreadcrumb) },
     "/files/:id/rename": { PATCH: privatePipe(renameFile) },

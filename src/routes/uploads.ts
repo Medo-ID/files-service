@@ -65,6 +65,7 @@ export async function initiateUpload(req: BunRequest) {
       size,
       type: "folder",
       mimeType: null,
+      status: "completed",
       parentId,
       storageKey: null,
     });
