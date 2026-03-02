@@ -1,6 +1,6 @@
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "../db";
-import { files, type File, type NewFile } from "../schema";
+import { files, type NewFile } from "../schema";
 
 export async function insertFileMetadata(file: NewFile) {
   const [result] = await db.insert(files).values(file).returning();
@@ -19,6 +19,33 @@ export async function getFileById(userId: string, fileId: string) {
       ),
     );
   return result;
+}
+
+type BreadcrumbItem = {
+  id: string;
+  name: string;
+};
+
+export async function getAncestors(userId: string, parentId: string) {
+  const result = await db.execute(sql`
+    WITH RECURSIVE ancestors AS (
+      SELECT id, name, parent_id, owner_id
+      FROM files
+      WHERE id = ${parentId}
+        AND owner_id = ${userId}
+
+      UNION ALL
+
+      SELECT f.id, f.name, f.parent_id, f.owner_id
+      FROM files f
+      INNER JOIN ancestors a ON f.id = a.parent_id
+      WHERE f.owner_id = ${userId}
+    )
+    SELECT id, name FROM ancestors;
+  `);
+
+  const rows = result.rows as BreadcrumbItem[];
+  return rows.reverse();
 }
 
 export async function userFiles(userId: string, parentId: string | null) {

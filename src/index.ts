@@ -4,6 +4,7 @@ import { healthCheck, root } from "./routes/health";
 import {
   deleteFileOrFolder,
   download,
+  getBreadcrumb,
   getFile,
   listFiles,
   moveFile,
@@ -26,11 +27,12 @@ const server = serve({
     "/health": { GET: privatePipe(healthCheck) },
     "/": { GET: publicPipe(root) },
     // Files Metadata, Navigation & Download
-    "/files/:folder": { GET: privatePipe(listFiles) },
+    "/files": { GET: privatePipe(listFiles) },
     "/files/:id": {
       GET: privatePipe(getFile),
       DELETE: privatePipe(deleteFileOrFolder),
     },
+    "/files/:id/breadcrumb": { GET: privatePipe(getBreadcrumb) },
     "/files/:id/rename": { PATCH: privatePipe(renameFile) },
     "/files/:id/move": { PATCH: privatePipe(moveFile) },
     "/files/:id/download": { GET: privatePipe(download) },

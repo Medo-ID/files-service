@@ -3,6 +3,7 @@ import type { AuthRequest } from "../middlewares/types";
 import {
   checkNameCollision,
   getAllDescendantFiles,
+  getAncestors,
   getFileById,
   isDescendant,
   moveFileToFolder,
@@ -17,17 +18,15 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { s3 } from "../config";
 import archiver from "archiver";
 import { PassThrough } from "node:stream";
-
-// Max file size: 100MB (safe for S3 free tier and $0 cost operation)
-const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB in bytes
+import { MAX_FILE_SIZE } from "./uploads";
 
 export async function listFiles(req: BunRequest) {
   const { session } = req as AuthRequest;
-  const parentId = req.params.folder || null;
-  console.log(parentId, session.sub);
+  const searchParams = new URL(req.url).searchParams;
+  const parentId = searchParams.get("parentId");
   const files = await userFiles(session.sub, parentId);
 
-  return respondWithJSON(200, { files });
+  return respondWithJSON(200, files);
 }
 
 // This get file is not for downloading purpose
@@ -55,6 +54,21 @@ export async function getFile(req: BunRequest) {
     mimeType: file.mimeType,
     fileSize: file.size,
   });
+}
+
+export async function getBreadcrumb(req: BunRequest) {
+  const { session } = req as AuthRequest;
+  const parentId = req.params.id;
+  if (!parentId) {
+    throw new BadRequestError("Missing folder ID");
+  }
+
+  const breadcrumb = await getAncestors(session.sub, parentId);
+  if (!breadcrumb.length) {
+    throw new NotFoundError("Folder not found");
+  }
+
+  return respondWithJSON(200, breadcrumb);
 }
 
 export async function renameFile(req: BunRequest) {

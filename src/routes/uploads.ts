@@ -31,8 +31,8 @@ export type FileMetadata = {
 };
 
 // Max file size: 100MB (safe for S3 free tier and $0 cost operation)
-const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB in bytes
-const MULTIPART_THRESHOLD = 5 * 1024 * 1024; // 5MB in bytes
+export const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB in bytes
+export const MULTIPART_THRESHOLD = 5 * 1024 * 1024; // 5MB in bytes
 
 export async function initiateUpload(req: BunRequest) {
   const { session } = req as AuthRequest;
