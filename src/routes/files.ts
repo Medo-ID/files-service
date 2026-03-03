@@ -18,7 +18,8 @@ import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { s3 } from "../config";
 import archiver from "archiver";
-import { PassThrough } from "node:stream";
+import { Upload } from "@aws-sdk/lib-storage";
+import { PassThrough } from "stream";
 import { MAX_FILE_SIZE } from "./uploads";
 
 export async function listFiles(req: BunRequest) {
@@ -173,47 +174,62 @@ export async function download(req: BunRequest) {
       ResponseContentDisposition: `attachment; filename="${target.name}"`,
     });
     const url = await getSignedUrl(s3, cmd, { expiresIn: 3600 });
-    return respondWithJSON(200, { type: "file", url });
+    return respondWithJSON(200, { url });
   }
 
   // ** Folder Download **
   const allFiles = await getAllDescendantFiles(session.sub, target.id);
   if (!allFiles.length) throw new NotFoundError("Folder is empty or not found");
 
-  const archive = archiver("zip", { zlib: { level: 5 } });
+  const zipKey = `temp-zips/${session.sub}/${target.id}-${Date.now()}.zip`;
+
+  const archive = archiver("zip", { zlib: { level: 6 } });
   const passThrough = new PassThrough();
 
   archive.on("error", (err) => {
-    console.error("Archive Error:", err);
+    console.error("Archive error:", err);
     passThrough.destroy(err);
   });
+
   archive.pipe(passThrough);
 
-  (async () => {
-    try {
-      for (const file of allFiles) {
-        const cmd = new GetObjectCommand({
-          Bucket: process.env.AWS_BUCKET!,
-          Key: file.storageKey,
-        });
-
-        const s3Response = await s3.send(cmd);
-        if (!s3Response.Body) continue;
-
-        archive.append(s3Response.Body as any, { name: file.relativePath });
-      }
-
-      archive.finalize();
-    } catch (err) {
-      archive.abort();
-      passThrough.destroy(err as Error);
-    }
-  })();
-
-  return new Response(passThrough as any, {
-    headers: {
-      "Content-Type": "application/zip",
-      "Content-Disposition": `attachment; filename="${target.name}.zip"`,
+  // Stream zip directly to S3 using multipart upload
+  const upload = new Upload({
+    client: s3,
+    params: {
+      Bucket: process.env.AWS_BUCKET!,
+      Key: zipKey,
+      Body: passThrough,
+      ContentType: "application/zip",
     },
+    queueSize: 4, // concurrency
+    partSize: 10 * 1024 * 1024,
   });
+
+  // Start appending S3 files into archive
+  for (const file of allFiles) {
+    const s3Obj = await s3.send(
+      new GetObjectCommand({
+        Bucket: process.env.AWS_BUCKET!,
+        Key: file.storageKey,
+      }),
+    );
+
+    archive.append(s3Obj.Body as any, {
+      name: file.relativePath,
+    });
+  }
+
+  archive.finalize();
+  await upload.done();
+
+  // Generate presigned download URL
+  const downloadCmd = new GetObjectCommand({
+    Bucket: process.env.AWS_BUCKET!,
+    Key: zipKey,
+    ResponseContentDisposition: `attachment; filename="${target.name}.zip"`,
+  });
+
+  const url = await getSignedUrl(s3, downloadCmd, { expiresIn: 3600 });
+  return respondWithJSON(200, { url });
 }
