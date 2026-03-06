@@ -8,6 +8,7 @@ import {
   restoreFile,
   restoreFolderTree,
   getAllDescendantFiles,
+  getDeletedItemById,
 } from "../database/queries/files";
 import { respondWithJSON } from "../utils/json";
 import { BadRequestError, NotFoundError } from "../utils/error";
@@ -26,12 +27,8 @@ export async function restore(req: BunRequest) {
   const fileId = req.params.id;
   if (!fileId) throw new BadRequestError("Missing file ID");
 
-  const file = await getFileById(session.sub, fileId);
+  const file = await getDeletedItemById(session.sub, fileId);
   if (!file) throw new NotFoundError("File not found");
-
-  if (!file.isDeleted) {
-    throw new BadRequestError("Item is not deleted");
-  }
 
   await assertParentIsRestored(session.sub, file.parentId);
 
@@ -49,7 +46,7 @@ export async function permanent(req: BunRequest) {
   const fileId = req.params.id;
   if (!fileId) throw new BadRequestError("Missing file ID");
 
-  const file = await getFileById(session.sub, fileId);
+  const file = await getDeletedItemById(session.sub, fileId);
   if (!file) throw new NotFoundError("File not found");
 
   if (file.type === "file") {

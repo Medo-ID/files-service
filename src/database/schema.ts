@@ -46,7 +46,14 @@ export const files = pgTable(
   },
   (t) => [
     unique().on(t.ownerId, t.parentId, t.name),
-    index("deleted_index").on(t.ownerId, t.isDeleted),
+    index("files_list_index").on(
+      t.ownerId,
+      t.parentId,
+      t.isDeleted,
+      t.status,
+      t.createdAt,
+    ),
+    index("trash_query_index").on(t.ownerId, t.isDeleted),
     index("deleted_at_index").on(t.deletedAt),
   ],
 );

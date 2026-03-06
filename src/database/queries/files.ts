@@ -17,7 +17,8 @@ export async function getFileById(userId: string, fileId: string) {
         eq(files.id, fileId),
         eq(files.isDeleted, false),
       ),
-    );
+    )
+    .limit(1);
   return result;
 }
 
@@ -161,6 +162,7 @@ export async function isDescendant(
       -- Walk up the tree to the root
       SELECT f.id, f.parent_id FROM ${files} f
       INNER JOIN path_up p ON f.id = p.parent_id
+      WHERE f.owner_id = ${userId}
     )
     -- If the targetFileId is found anywhere in this path, it's a cycle!
     SELECT 1 FROM path_up WHERE id = ${targetFileId};
@@ -197,11 +199,11 @@ export async function softDeleteRecursively(
       SELECT f.id FROM ${files} f
       INNER JOIN folder_tree ft ON f.parent_id = ft.id
       WHERE f.is_deleted = false
+        AND f.owner_id = ${userId}
     )
     UPDATE ${files}
     SET is_deleted = true, deleted_at = NOW()
-    WHERE id IN (SELECT id FROM folder_tree)
-      AND owner_id = ${userId};
+    WHERE id IN (SELECT id FROM folder_tree);
   `);
 }
 
@@ -222,11 +224,11 @@ export async function softDeleteFilesRecursively(
       SELECT f.id FROM ${files} f
       INNER JOIN folder_tree ft ON f.parent_id = ft.id
       WHERE f.is_deleted = false
+        AND f.owner_id = ${userId}
     )
     UPDATE ${files}
     SET is_deleted = true, deleted_at = NOW()
-    WHERE id IN (SELECT id FROM folder_tree)
-      AND owner_id = ${userId};
+    WHERE id IN (SELECT id FROM folder_tree);
   `);
 }
 
@@ -235,6 +237,21 @@ export async function getDeletedItems(userId: string) {
     .select()
     .from(files)
     .where(and(eq(files.ownerId, userId), eq(files.isDeleted, true)));
+}
+
+export async function getDeletedItemById(userId: string, fileId: string) {
+  const [result] = await db
+    .select()
+    .from(files)
+    .where(
+      and(
+        eq(files.ownerId, userId),
+        eq(files.id, fileId),
+        eq(files.isDeleted, true),
+      ),
+    )
+    .limit(1);
+  return result;
 }
 
 export async function restoreFile(userId: string, fileId: string) {
@@ -263,11 +280,11 @@ export async function restoreFolderTree(userId: string, rootFileId: string) {
       SELECT f.id FROM ${files} f
       INNER JOIN folder_tree ft ON f.parent_id = ft.id
       WHERE f.is_deleted = true
+        AND f.owner_id = ${userId}
     )
     UPDATE ${files}
     SET is_deleted = false, deleted_at = NULL
-    WHERE id IN (SELECT id FROM folder_tree)
-      AND owner_id = ${userId};
+    WHERE id IN (SELECT id FROM folder_tree);
   `);
 }
 
@@ -290,8 +307,7 @@ export async function permanentlyDeleteTree(
       WHERE f.owner_id = ${userId}
     )
     DELETE FROM ${files}
-    WHERE id IN (SELECT id FROM folder_tree)
-      AND owner_id = ${userId};
+    WHERE id IN (SELECT id FROM folder_tree);
   `);
 }
 
