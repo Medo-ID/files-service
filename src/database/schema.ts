@@ -2,6 +2,7 @@ import { relations } from "drizzle-orm";
 import {
   bigint,
   boolean,
+  index,
   pgEnum,
   pgTable,
   text,
@@ -41,8 +42,13 @@ export const files = pgTable(
     updatedAt: timestamp("updated_at")
       .defaultNow()
       .$onUpdate(() => new Date()),
+    deletedAt: timestamp("deleted_at"),
   },
-  (t) => [unique().on(t.ownerId, t.parentId, t.name)],
+  (t) => [
+    unique().on(t.ownerId, t.parentId, t.name),
+    index("deleted_index").on(t.ownerId, t.isDeleted),
+    index("deleted_at_index").on(t.deletedAt),
+  ],
 );
 
 export const uploads = pgTable("uploads", {

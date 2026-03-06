@@ -146,7 +146,7 @@ export async function softDeleteMany(req: BunRequest) {
   const fileIds = (await req.json()) as string[];
   if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0)
     throw new BadRequestError("Missing file IDs");
-  console.log("ids:", fileIds);
+
   await softDeleteFilesRecursively(session.sub, fileIds);
   return respondWithJSON(200, { message: "Items deleted" });
 }

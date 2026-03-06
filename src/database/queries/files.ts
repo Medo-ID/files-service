@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, lt, sql } from "drizzle-orm";
 import { db } from "../db";
 import { files, type NewFile } from "../schema";
 
@@ -61,7 +61,7 @@ export async function userFiles(userId: string, parentId: string | null) {
     conditions.push(isNull(files.parentId));
   }
 
-  return db
+  return await db
     .select()
     .from(files)
     .where(and(...conditions))
@@ -106,6 +106,7 @@ export async function getAllDescendantFiles(userId: string, targetId: string) {
 
   return rows as {
     id: string;
+    type: "file" | "folder";
     storageKey: string;
     relativePath: string;
   }[];
@@ -180,11 +181,14 @@ export async function moveFileToFolder(
 }
 
 // ** RECURSIVE DELETE **
-export async function softDeleteRecursively(userId: string, fileId: string) {
+export async function softDeleteRecursively(
+  userId: string,
+  rootFileId: string,
+) {
   await db.execute(sql`
     WITH RECURSIVE folder_tree AS (
       SELECT id FROM ${files} 
-      WHERE id = ${fileId} 
+      WHERE id = ${rootFileId} 
         AND owner_id = ${userId}
         AND is_deleted = false
         
@@ -195,7 +199,7 @@ export async function softDeleteRecursively(userId: string, fileId: string) {
       WHERE f.is_deleted = false
     )
     UPDATE ${files}
-    SET is_deleted = true
+    SET is_deleted = true, deleted_at = NOW()
     WHERE id IN (SELECT id FROM folder_tree)
       AND owner_id = ${userId};
   `);
@@ -220,8 +224,97 @@ export async function softDeleteFilesRecursively(
       WHERE f.is_deleted = false
     )
     UPDATE ${files}
-    SET is_deleted = true
+    SET is_deleted = true, deleted_at = NOW()
     WHERE id IN (SELECT id FROM folder_tree)
       AND owner_id = ${userId};
+  `);
+}
+
+export async function getDeletedItems(userId: string) {
+  return await db
+    .select()
+    .from(files)
+    .where(and(eq(files.ownerId, userId), eq(files.isDeleted, true)));
+}
+
+export async function restoreFile(userId: string, fileId: string) {
+  await db
+    .update(files)
+    .set({ isDeleted: false, deletedAt: null })
+    .where(
+      and(
+        eq(files.ownerId, userId),
+        eq(files.id, fileId),
+        eq(files.isDeleted, true),
+      ),
+    );
+}
+
+export async function restoreFolderTree(userId: string, rootFileId: string) {
+  await db.execute(sql`
+    WITH RECURSIVE folder_tree AS (
+      SELECT id FROM ${files} 
+      WHERE id = ${rootFileId} 
+        AND owner_id = ${userId}
+        AND is_deleted = true
+        
+      UNION ALL
+        
+      SELECT f.id FROM ${files} f
+      INNER JOIN folder_tree ft ON f.parent_id = ft.id
+      WHERE f.is_deleted = true
+    )
+    UPDATE ${files}
+    SET is_deleted = false, deleted_at = NULL
+    WHERE id IN (SELECT id FROM folder_tree)
+      AND owner_id = ${userId};
+  `);
+}
+
+export async function permanentlyDeleteTree(
+  userId: string,
+  rootFileId: string,
+) {
+  await db.execute(sql`
+    WITH RECURSIVE folder_tree AS (
+      SELECT id FROM ${files}
+      WHERE id = ${rootFileId}
+        AND owner_id = ${userId}
+        AND is_deleted = true
+
+      UNION ALL
+
+      SELECT f.id
+      FROM ${files} f
+      INNER JOIN folder_tree ft ON f.parent_id = ft.id
+      WHERE f.owner_id = ${userId}
+    )
+    DELETE FROM ${files}
+    WHERE id IN (SELECT id FROM folder_tree)
+      AND owner_id = ${userId};
+  `);
+}
+
+export async function emptyTrash(userId: string) {
+  await db
+    .delete(files)
+    .where(and(eq(files.ownerId, userId), eq(files.isDeleted, true)));
+}
+
+// Global queries that does not require user permission:
+export async function getOldDeletedItems() {
+  const result = await db.execute(sql`
+    SELECT * FROM files 
+    WHERE is_deleted = true
+      AND deleted_at < NOW() - INTERVAL '30 days'
+  `);
+  return result.rows;
+}
+
+export async function deleteOldItems() {
+  await db.execute(sql`
+    DELETE FROM files
+    WHERE is_deleted = true
+      AND deleted_at < NOW() - INTERVAL '30 days'
   `);
 }
