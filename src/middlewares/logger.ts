@@ -37,10 +37,7 @@ export function logger(handler: RouteHandler): RouteHandler {
         }),
       );
 
-      return new Response(JSON.stringify({ error: "Internal Server Error" }), {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      });
+      throw err;
     }
   };
 }
